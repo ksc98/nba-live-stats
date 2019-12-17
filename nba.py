@@ -14,7 +14,7 @@ def get_team_id(team_name):
 	if(type(team_name) == int):
 		for t in nba_teams:
 			if t['id'] == team_name:
-				return t['nickname']
+				return t
 	for t in nba_teams:
 		if t['abbreviation'] == team_name.upper():
 			return t['id']
@@ -74,22 +74,31 @@ def main():
 	
 	res = requests.get(url)
 	data = res.json()
-	print(data['stats'].keys())
+	visitor_team = get_team_id(data['basicGameData']['vTeam']['teamId'])
+	home_team = get_team_id(data['basicGameData']['hTeam']['teamId'])
+
 	for d in data['stats']['vTeam'].items():
 		print(d)
+
 	for d in data['stats']['hTeam'].items():
 		print(d)
 
 	print('\n\n')
 
+	player_stats = {}
 	for p in data['stats']['activePlayers']:
 		print(p)
-	print(data['stats']['hTeam']['totals']['points'], '-', data['stats']['vTeam']['totals']['points'])
+		player_stats[p['personId']] = p
+
+	#print(data['stats']['hTeam']['totals']['points'], '-', data['stats']['vTeam']['totals']['points'])
 	for p in data['stats']['activePlayers']:
 		if(p['isOnCourt']):
-			print(get_team_id(int(p['teamId'])), end=' ')
+			print(get_team_id(int(p['teamId']))['nickname'], end=' ')
 			print(p['jersey'], p['firstName'], p['lastName'], '(%s points)' % p['points'], '[%s]' % p['plusMinus'])
-
+	for item in player_stats.items():
+		print(item[0])
+		for i in item[1].items():
+			print('\t', i)
 	exit(1)
 	print('Game or stats')
 	i = input()
@@ -99,9 +108,9 @@ def main():
 		s = team.split()
 		if len(s) == 1:
 			team = s[0]
-			if not get_team_id(team):
+			if not get_team_id(team)['nickname']:
 				main()
-			else: get_pbp(get_team_id(team))
+			else: get_pbp(get_team_id(team)['nickname'])
 		else:
 			team1 = s[0]
 			team2 = s[-1]
