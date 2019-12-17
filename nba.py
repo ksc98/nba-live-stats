@@ -3,10 +3,10 @@ from nba_api.stats.endpoints import commonplayerinfo, playercareerstats, playbyp
 from collections import defaultdict
 from nba_api.stats.library.parameters import Season, SeasonType
 import pandas, sys
-import player
+import player, time
 from bs4 import BeautifulSoup
 import json, requests
-
+from datetime import date
 
 
 def get_team_id(team_name):
@@ -21,7 +21,20 @@ def get_team_id(team_name):
 		elif team_name in t['nickname'].lower():
 			return t['id']
 
+def get_game_url(team_id):
+	gamefinder = leaguegamefinder.LeagueGameFinder(team_id_nullable=team_id, season_nullable=Season.default, season_type_nullable=SeasonType.regular)
+	games_dict = gamefinder.get_normalized_dict()
+	games = games_dict['LeagueGameFinderResults']
+	game = games[0]
+	game_id = game['GAME_ID']
+	game_matchup = game['MATCHUP']
+	today = date.today()
+	d1 = today.strftime("%Y%m%d")
 
+	return f'https://data.nba.net/prod/v1/{d1}/{game_id}_boxscore.json'
+
+
+# Get play-by-play of any game that has ended
 
 def get_pbp(team_id):
 	gamefinder = leaguegamefinder.LeagueGameFinder(team_id_nullable=team_id, season_nullable=Season.default, season_type_nullable=SeasonType.regular)
@@ -36,8 +49,6 @@ def get_pbp(team_id):
 
 	df = playbyplay.PlayByPlay(game_id).get_data_frames()[0]
 	df = playbyplay.PlayByPlay(game_id).get_normalized_dict()['PlayByPlay']
-
-
 	pandas.set_option('display.max_colwidth',300)
 	pandas.set_option('display.max_rows',1000)
 
@@ -46,7 +57,7 @@ def get_pbp(team_id):
 	counter = 1
 	for p in df:
 		if(p['SCORE']): scorelist.append(p['SCORE'])
-		
+
 		if(p['HOMEDESCRIPTION']):
 			if most_recent_score != scorelist[-1]:
 				print('{score:<10}   {desc:>5}'.format(score=scorelist[-1], desc=p['HOMEDESCRIPTION']))
@@ -70,12 +81,67 @@ def get_pbp(team_id):
 
 
 def main():
-	url = 'https://data.nba.net/prod/v1/20191216/0021900396_boxscore.json'
-	
+	print('What team that is currently playing?')
+	team_name = input()
+	url = get_game_url(get_team_id(team_name))
+	print(url)
 	res = requests.get(url)
 	data = res.json()
 	visitor_team = get_team_id(data['basicGameData']['vTeam']['teamId'])
 	home_team = get_team_id(data['basicGameData']['hTeam']['teamId'])
+	player_stats = {}
+
+	start_time = time.time()
+
+	keys = ['personId', 'firstName', 'lastName', 'jersey', 'teamId', 'isOnCourt', 'points', 'pos', 'position_full', 'player_code',
+			'min', 'fgm', 'fga', 'fgp', 'ftm', 'fta', 'ftp', 'tpm',
+			'tpa', 'tpp', 'offReb', 'defReb', 'totReb', 'assists', 'pFouls',
+			'steals', 'turnovers', 'blocks', 'plusMinus', 'dnp', 'sortKey']
+	while True:
+		res = requests.get(url)
+		data = res.json()
+		home_points = data['stats']['hTeam']['totals']['points']
+		vis_points = data['stats']['vTeam']['totals']['points']
+		for p in data['stats']['activePlayers']:
+			#print(p.keys())
+			if p['personId'] not in player_stats:
+				player_stats[p['personId']] = p
+			else:
+				current_id = p['personId']
+				FT = False
+				bucket = False
+				sub_out = None
+				sub_in = None
+				for item in p.items():
+					#print(item)
+					# if item[0] == 'points':
+						# player_stats[current_id][item[0]] = 1
+					if player_stats[current_id][item[0]] != item[1]:
+						name = players.find_player_by_id(current_id)['full_name']
+						#print(f'For player {name}, {item[0]} changed from {player_stats[current_id][item[0]]} to {item[1]}')
+						if (item[0]) == 'isOnCourt':
+							if item[1] == False:
+								sub_out = name
+							elif item[1] == True:
+								sub_in = name
+						if sub_out and sub_in:
+							print(f'\t{sub_in} SUBBED IN for {sub_out}')
+						elif item[0] == 'fgm':
+							bucket = True
+							print(f'{home_points} - {vis_points}\t{name} SCORED a field goal')
+						elif item[0] == 'fga' and not bucket:
+							print(f'\t{name} MISSED a field goal')
+						if item[0] == 'ftm':
+							FT = True
+							print(f'{name} SCORED a free throw')
+						elif item[0] == 'fta':
+							print(f'{name} MISSED a free throw')
+
+						player_stats[current_id][item[0]] = item[1]
+						
+		time.sleep(2)
+
+
 
 	for d in data['stats']['vTeam'].items():
 		print(d)
@@ -85,10 +151,8 @@ def main():
 
 	print('\n\n')
 
-	player_stats = {}
-	for p in data['stats']['activePlayers']:
-		print(p)
-		player_stats[p['personId']] = p
+	
+	
 
 	#print(data['stats']['hTeam']['totals']['points'], '-', data['stats']['vTeam']['totals']['points'])
 	for p in data['stats']['activePlayers']:
