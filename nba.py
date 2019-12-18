@@ -33,6 +33,17 @@ def get_game_url(team_id):
 
 	return f'https://data.nba.net/prod/v1/{d1}/{game_id}_boxscore.json'
 
+def make_dict(d, url):
+	res = requests.get(url)
+	data = res.json()
+	for p in data['stats']['activePlayers']:
+		#print(p)
+		if p['personId'] not in d:
+			d[p['personId']] = p
+	#print(d)
+	return d
+
+
 
 # Get play-by-play of any game that has ended
 
@@ -76,9 +87,17 @@ def get_pbp(team_id):
 		if(p['SCORE']): most_recent_score = p['SCORE']
 
 
+def check_diff(player_stats, kv):
+	k = kv[0]
+	v = kv[1]
+	if player_stats[k] != v:
+		return k, v
+	return None
 
-
-
+def refresh_stats(url):
+	res = requests.get(url)
+	data = res.json()
+	return data
 
 def main():
 	print('What team that is currently playing?')
@@ -86,60 +105,98 @@ def main():
 	url = get_game_url(get_team_id(team_name))
 	print(url)
 	res = requests.get(url)
+	if not res:
+		print('Game has not started yet.\n')
+		main()
 	data = res.json()
+	if not data:
+		print('Game has not started yet')
+		main()
 	visitor_team = get_team_id(data['basicGameData']['vTeam']['teamId'])
 	home_team = get_team_id(data['basicGameData']['hTeam']['teamId'])
 	player_stats = {}
-
 	start_time = time.time()
-
 	keys = ['personId', 'firstName', 'lastName', 'jersey', 'teamId', 'isOnCourt', 'points', 'pos', 'position_full', 'player_code',
 			'min', 'fgm', 'fga', 'fgp', 'ftm', 'fta', 'ftp', 'tpm',
 			'tpa', 'tpp', 'offReb', 'defReb', 'totReb', 'assists', 'pFouls',
 			'steals', 'turnovers', 'blocks', 'plusMinus', 'dnp', 'sortKey']
+	i_keys = ['isOnCourt', 'points', 'fgm', 'fga', 'ftm', 'fta', 'tpm', 'tpa', 'offReb', 'defReb', 'totReb', 'assists', 'pFouls',
+			'steals', 'turnovers', 'blocks']
+	player_stats = make_dict(player_stats, url)
 	while True:
-		res = requests.get(url)
-		data = res.json()
+		data = refresh_stats(url)
 		home_points = data['stats']['hTeam']['totals']['points']
 		vis_points = data['stats']['vTeam']['totals']['points']
-		for p in data['stats']['activePlayers']:
-			#print(p.keys())
-			if p['personId'] not in player_stats:
-				player_stats[p['personId']] = p
-			else:
-				current_id = p['personId']
-				FT = False
-				bucket = False
-				sub_out = None
-				sub_in = None
-				for item in p.items():
-					#print(item)
-					# if item[0] == 'points':
-						# player_stats[current_id][item[0]] = 1
-					if player_stats[current_id][item[0]] != item[1]:
-						name = players.find_player_by_id(current_id)['full_name']
-						#print(f'For player {name}, {item[0]} changed from {player_stats[current_id][item[0]]} to {item[1]}')
-						if (item[0]) == 'isOnCourt':
-							if item[1] == False:
-								sub_out = name
-							elif item[1] == True:
-								sub_in = name
-						if sub_out and sub_in:
-							print(f'\t{sub_in} SUBBED IN for {sub_out}')
-						elif item[0] == 'fgm':
-							bucket = True
-							print(f'{home_points} - {vis_points}\t{name} SCORED a field goal')
-						elif item[0] == 'fga' and not bucket:
-							print(f'\t{name} MISSED a field goal')
-						if item[0] == 'ftm':
-							FT = True
-							print(f'{name} SCORED a free throw')
-						elif item[0] == 'fta':
-							print(f'{name} MISSED a free throw')
+		#print(f'{home_points} - {vis_points}')
 
-						player_stats[current_id][item[0]] = item[1]
-						
+		for p in data['stats']['activePlayers']:
+			sub_out = None
+			sub_in = None
+			current_id = p['personId']
+			name = None
+			if players.find_player_by_id(current_id):
+				name = players.find_player_by_id(current_id)['full_name']
+			if not name: name = p['player_code']
+			current_player_points = p['points']
+			if check_diff(player_stats[current_id], ('defReb', p['defReb'])):
+				k, v = check_diff(player_stats[current_id], ('defReb', p['defReb']))
+				print(f'\tDEFENSIVE REBOUND: {name} ({v} rebounds)')
+				player_stats[current_id][k] = v
+				break
+			elif check_diff(player_stats[current_id], ('offReb', p['offReb'])):
+				k, v = check_diff(player_stats[current_id], ('offReb', p['offReb']))
+				print(f'\tOFFENSIVE REBOUND: {name} ({v} rebounds)')
+				player_stats[current_id][k] = v
+				break
+			elif check_diff(player_stats[current_id], ('tpa', p['tpa'])):
+				k, v = check_diff(player_stats[current_id], ('tpa', p['tpa']))
+				if check_diff(player_stats[current_id], ('tpm', p['tpm'])):
+					k, v = check_diff(player_stats[current_id], ('tpm', p['tpm']))
+					print(f'{home_points} - {vis_points}\t{name} MADE a three pointer [{current_player_points}]')
+					player_stats[current_id][k] = v
+					break
+				print(f'{home_points} - {vis_points}\t{name} MISSED a field goal')
+				player_stats[current_id][k] = v
+				break
+			elif check_diff(player_stats[current_id], ('fga', p['fga'])):
+				k, v = check_diff(player_stats[current_id], ('fga', p['fga']))
+				if check_diff(player_stats[current_id], ('fgm', p['fgm'])):
+					k, v = check_diff(player_stats[current_id], ('fgm', p['fgm']))
+					print(f'{home_points} - {vis_points}\t{name} MADE a field goal [{current_player_points}]')
+					player_stats[current_id][k] = v
+					break
+				print(f'{home_points} - {vis_points}\t{name} MISSED a field goal')
+				player_stats[current_id][k] = v
+				break
+			elif check_diff(player_stats[current_id], ('fta', p['fta'])):
+				k, v = check_diff(player_stats[current_id], ('fta', p['fta']))
+				if check_diff(player_stats[current_id], ('ftm', p['ftm'])):
+					print(f'{home_points} - {vis_points}\t{name} MADE a free throw ({current_player_points} points)')
+					player_stats[current_id][k] = v
+					break
+				print(f'{home_points} - {vis_points}\t{name} MISSED a free throw')
+				player_stats[current_id][k] = v
+				break
+			elif check_diff(player_stats[current_id], ('pFouls', p['pFouls'])):
+				k, v = check_diff(player_stats[current_id], ('pFouls', p['pFouls']))
+				print(f'\tFOUL on {name} ({v} fouls)')
+				player_stats[current_id][k] = v
+				break
+			elif check_diff(player_stats[current_id], ('steals', p['steals'])):
+				k, v = check_diff(player_stats[current_id], ('steals', p['steals']))
+				print(f'\tSTEAL: {name} ({v} steals)')
+				player_stats[current_id][k] = v
+				break
+			elif check_diff(player_stats[current_id], ('turnovers', p['turnovers'])):
+				k, v = check_diff(player_stats[current_id], ('turnovers', p['turnovers']))
+				print(f'\tTURNOVER: {name} ({v} turnovers)')
+				player_stats[current_id][k] = v
+				break
+			
 		time.sleep(2)
+		data = refresh_stats(url)
+
+
 
 
 
