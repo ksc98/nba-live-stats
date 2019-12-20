@@ -2,7 +2,7 @@ import bs4 as bs
 import urllib.request
 import nba, time, re, sys, boxscore
 
-first_parse = True
+first_parse = False
 
 
 def create_game_list():
