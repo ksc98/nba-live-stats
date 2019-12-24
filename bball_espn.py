@@ -44,12 +44,9 @@ def process_deets(s, url):
 	boxscore_dict = boxscore.get_boxscore_dict(gameid)
 	player_name = re.findall(r'^(?:[A-Z]+[^A-Z]*?)+(?= [a-z]|$)', s)
 	if not player_name:
-		#print(f'no player found in string: "{s}"')
 		return s
-	#print(s)
 	player_name = player_name[0].lower()
 	if player_name not in boxscore_dict:
-		#print(f'no player found in string: "{s}"')
 		return s
 	s = s.replace(' \'', '\'')
 	if 'free throw 1 of 1' in s:
@@ -61,7 +58,6 @@ def process_deets(s, url):
 		numAND1 = boxscore_dict[player_name]['AND1']
 		s += f' ({numFT} FT, {numAND1} AND1\'s)'
 	if 'shooting foul' in s or 'personal foul' in s or 'charge' in s or 'offensive foul' in s or 'foul' in s:
-		#print(player_name)
 		numFouls = boxscore_dict[player_name]['pf']
 		s += f' ({numFouls} fouls)'
 	elif 'block' in s:
@@ -124,6 +120,8 @@ def print_str(timer, deets, score, url):
 	global first_parse
 	for i, j, k in zip(reversed(timer), reversed(deets), reversed(score)):
 		j = j.string
+		if j.lower() == 'end of game':
+			exit(1)
 		if first_parse:
 			j = process_deets(j, url)
 		if last_score == None or k != last_score:
