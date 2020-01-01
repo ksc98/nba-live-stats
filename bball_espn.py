@@ -1,6 +1,6 @@
 import bs4 as bs
 import urllib.request
-import nba, time, re, sys, boxscore
+import nba, time, re, sys, boxscore, boxscore_pd
 
 first_parse = False
 
@@ -57,7 +57,7 @@ def process_deets(s, url):
 		numFT = boxscore_dict[player_name]['ft']
 		numAND1 = boxscore_dict[player_name]['AND1']
 		s += f' ({numFT} FT, {numAND1} AND1\'s)'
-	if 'shooting foul' in s or 'personal foul' in s or 'charge' in s or 'offensive foul' in s or 'foul' in s:
+	elif 'shooting foul' in s or 'personal foul' in s or 'charge' in s or 'offensive foul' in s or 'foul' in s:
 		numFouls = boxscore_dict[player_name]['pf']
 		s += f' ({numFouls} fouls)'
 	elif 'block' in s:
@@ -120,15 +120,19 @@ def print_str(timer, deets, score, url):
 	global first_parse
 	for i, j, k in zip(reversed(timer), reversed(deets), reversed(score)):
 		j = j.string
-		if j.lower() == 'end of game':
-			exit(1)
 		if first_parse:
 			j = process_deets(j, url)
+
 		if last_score == None or k != last_score:
 			print()
 			print(f'{k.string}'.ljust(12) + f'{i.string} - {j}')
 		else:
 			print(12*' ' + f'{i.string} - {j}')
+		if ('timeout' in j.lower() or 'end of' in j.lower()) and first_parse:
+			gameid = re.findall(r'(?<=gameId=).*', url)[0]
+			url = f'https://www.espn.com/nba/boxscore?gameId={gameid}'
+			boxscore_pd.print_quarter_breakdowns(url)
+			continue
 		last_score = k
 
 
