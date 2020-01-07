@@ -4,6 +4,7 @@ from collections import defaultdict
 import sys
 
 
+
 def get_id(player_name):
 	if not players.find_players_by_full_name(player_name):
 		return None

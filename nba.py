@@ -9,6 +9,7 @@ import json, requests
 from datetime import date
 
 
+
 def get_team_id(team_name):
 	nba_teams = teams.get_teams()
 	if(type(team_name) == int):
