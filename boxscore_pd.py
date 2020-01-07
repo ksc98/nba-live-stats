@@ -17,7 +17,6 @@ def print_quarter_breakdowns(url):
 
 
 
-
 	#res = requests.get('https://www.espn.com/nba/boxscore?gameId=401161133')
 	res = requests.get(url)
 	#res = requests.get('https://stats.nba.com/game/0021900496/')
