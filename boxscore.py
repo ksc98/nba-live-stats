@@ -3,7 +3,7 @@ import urllib.request
 import nba, time, re, sys
 from nba_api.stats.static import players
 from nba_api.stats.endpoints import playercareerstats
-
+ 
 
 def print_dict(d):
     for p in d.items():
