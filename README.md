@@ -1,3 +1,3 @@
 # nba-live-stats
 Will find a live game and output stats in realtime. Can also check stats of any players or teams for past and current seasons.
-Use bball_espn.py to get today's games and play by play data for live games.
+Use ```bball_espn.py``` to get today's games and play by play data for live games.
